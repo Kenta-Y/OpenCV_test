@@ -4,11 +4,33 @@
 
 #include "ImgProcessing.h"
 #include "DegreofCircle.h"
+#include "opencv-histlib/src/histLib.h"
+#include "histLib.h"
 
 extern cv::Mat org;
+int myCV::cnt;
 
 double Square(double a){    //  二乗の計算
     return a * a;
+}
+
+void draw_Histogram(const cv::Mat &src_im, cv::Mat &hist_im){
+    //use filitchp made libraly
+    //github : "https://github.com/filitchp/opencv-histlib"
+    //
+    //引数 -> 入力画像，ヒストグラム用のMat型
+
+    cv::Mat dst;
+    if(src_im.channels() == 1) cv::cvtColor(src_im, dst, CV_GRAY2BGR);
+    else src_im.copyTo(dst);
+
+    CHistLib *Histogram = new CHistLib;
+    cv::MatND HistB, HistG, HistR;
+
+    Histogram->ComputeHistogramBGR(dst, HistB, HistG, HistR);
+    Histogram->DrawHistogramBGR(HistB, HistG, HistR, hist_im);
+
+    delete Histogram;
 }
 
 void Mat_cheaker(cv::Mat src_im){
@@ -26,9 +48,9 @@ void Integral_Image(cv::Mat src_img, cv::Mat &out_img){   //画像の積分？
 
     int height = (int)src_img.step1(), width = src_img.channels();
 
-    for(int j = 0; j < src_img.rows; j++){                          //縦
-        for(int i = 0; i < src_img.cols; i++){  //横
-            for(int k = 0; k < src_img.channels(); k++){            //チャンネル数
+    for(int j = 0; j < src_img.rows; j++){               //縦
+        for(int i = 0; i < src_img.cols; i++){           //横
+            for(int k = 0; k < src_img.channels(); k++){ //チャンネル数
 
                 int present_pos = j * (int)src_img.step1() + i * src_img.channels() + k;
 
@@ -50,86 +72,6 @@ void Integral_Image(cv::Mat src_img, cv::Mat &out_img){   //画像の積分？
     }
 
     tmpim.copyTo(out_img);  //出力画像
-}
-
-void Ask_CenterofGravity(cv::Mat src_img){  //重心を求める
-    int tmp = 0, sx = 0, sy = 0;
-    int X_center = 0, Y_center = 0;
-
-    for(int j = 0; j < src_img.rows; ++j){
-        for(int i = 0; i < src_img.cols; ++i){
-            if( (int)src_img.data[ j * src_img.step + i * src_img.elemSize()] != 255){
-                tmp++;
-                sx += i;
-                sy += j;
-            }
-        }
-    }
-
-    X_center = (double)sx / tmp;
-    Y_center = (double)sy / tmp;
-
-    if(X_center > 0 && Y_center > 0){
-        src_img.data[src_img.cols * Y_center + X_center] = 127;    //重心を白にする
-    }
-
-    //std::cout << X_center << "，" << Y_center <<std::endl;     //重心座標
-    //std::cout << src_img.cols * Y_center + X_center << std::endl;
-
-    //MEMO
-    //rows  ->  縦のピクセル
-    //cols  ->  横のピクセル
-    //違うかも step  ->  横のピクセル　×　チャンネル数
-    //elemsize  ->  チャンネル数を考慮した横のピクセル数
-}
-
-void Ask_CenterofGravity_kai(cv::Mat src_img){  //重心を求める
-    double tmp = 0, sx = 0, sy = 0;
-    int X_center = 0, Y_center = 0;
-    double alpha = 1.02;
-
-    for(int j = 0; j < src_img.rows; ++j){
-        for(int i = 0; i < src_img.cols; ++i){
-            if( (int)src_img.data[ j * src_img.step + i * src_img.elemSize()] == 0){
-                tmp++;
-                if(i < src_img.cols/2){
-                    //sx += (2.0/src_img.cols) * i*i;
-                    sx += src_img.cols/2 -  pow(alpha, (double)i-src_img.cols/2)*i;
-                }
-                else{
-                    //sx += (-(2.0/src_img.cols) * (i-src_img.cols/2) + 1)*i;
-                    sx +=  -src_img.cols/2 + pow(alpha, -((double)i-src_img.cols/2)+1) * i;
-                    //std::cout << pow(alpha, -(i-src_img.cols/2)+1) * i <<std::endl;
-                }
-
-                if(j < src_img.rows/2)
-                    //sy += (2.0/src_img.rows) * j*j;
-                    sy += src_img.rows/2 - pow(alpha, (double)j-src_img.rows/2)*j;
-                else
-                    //sy += (-(2.0/src_img.rows) * (j-src_img.rows/2) + 1)*j;
-                    sy += -src_img.rows/2 + pow(alpha, -((double)j-src_img.rows/2)+1) * j;
-
-                //sx += i;
-                //sy += j;
-            }
-        }
-    }
-
-    X_center = (double)sx*2 / tmp;
-    Y_center = (double)sy*2 / tmp;
-
-    if(X_center > 0 && Y_center > 0){
-        src_img.data[src_img.cols * Y_center + X_center] = 127;    //重心を白にする
-    }
-
-    //std::cout << X_center << "，" << Y_center <<std::endl;     //重心座標
-    //std::cout << src_img.cols * Y_center + X_center << std::endl;
-
-    //MEMO
-    //rows  ->  縦のピクセル
-    //cols  ->  横のピクセル
-    //違うかも step  ->  横のピクセル　×　チャンネル数
-    //elemsize  ->  チャンネル数を考慮した横のピクセル数
 }
 
 void Ask_correlation(cv::Mat src_img, cv::Mat src_img2){ //類似度を求める
@@ -306,4 +248,99 @@ std::vector<cv::Point> Ask_Circle(cv::Mat &src_im, cv::Point center, cv::Mat &dr
     }
 
     return circle_element;
+}
+
+myCV::myCV(cv::Mat _src_im) : src_im(_src_im){
+        //インスタンス作成数のカウント
+        cnt++;
+
+        //変数init
+        glayscale_flg = false;
+        threshold_flg = false;
+        edge_flg      = false;
+        negaposi_flg  = false;
+        flat_flg      = false;
+        integral_flg  = false;
+
+        thread_val = 255;
+        resize_val = 100;
+
+        //OpenCVのコントロールパネル生成
+        create_toolbar(cnt);
+}
+
+void myCV::callbackButton(int state,void *ptr){
+    Identifler* data = reinterpret_cast<Identifler*>(ptr);       //void*にぶち込んだ構造体のパス
+    myCV* this_p = reinterpret_cast<myCV*>(data->ptr); //コールバック登録したクラスのパス
+
+    if     (data->no == 0) this_p->glayscale_flg = !this_p->glayscale_flg;
+    else if(data->no == 1) this_p->threshold_flg = !this_p->threshold_flg;
+    else if(data->no == 2) this_p->edge_flg      = !this_p->edge_flg;
+    else if(data->no == 3) this_p->negaposi_flg  = !this_p->negaposi_flg;
+    else if(data->no == 4) this_p->flat_flg      = !this_p->flat_flg;
+    else if(data->no == 5) this_p->integral_flg  = !this_p->integral_flg;
+}
+
+void myCV::create_toolbar(int val){
+    //チェックボックス
+    for(int i = 0;i < 8;i++)
+        tp.push_back(std::shared_ptr<Identifler>(new Identifler(i, this)));
+
+    cv::createButton("GrayScalle  ",     callbackButton, tp[0].get(), CV_CHECKBOX, 0);
+    cv::createButton("Binarization  ",   callbackButton, tp[1].get(), CV_CHECKBOX, 0);
+    cv::createButton("NegaPosiRevers  ", callbackButton, tp[3].get(), CV_CHECKBOX, 0);
+    cv::createButton("flat  ",           callbackButton, tp[4].get(), CV_CHECKBOX, 0);
+    cv::createButton("Integral  ",       callbackButton, tp[5].get(), CV_CHECKBOX, 0);
+    cv::createButton("Edge(Canny)  ",    callbackButton, tp[2].get(), CV_CHECKBOX, 0);
+
+    //スライダー
+    std::string str = "binary" + std::to_string(val);
+    cv::createTrackbar(str, "", &thread_val, 255);
+
+    str = "resize" + std::to_string(val);
+    cv::createTrackbar(str, "", &resize_val, 300);
+
+    //str = "value" + std::to_string(val);
+    //cv::createTrackbar(str, "", &value, 255);
+}
+
+cv::Mat myCV::getImg(){
+    cv::Mat dst;
+    src_im.copyTo(dst);
+
+    if (negaposi_flg)   //ネガポジ反転
+        dst = ~dst;
+    if (glayscale_flg) {    //グレースケールに変換
+        cv::Mat gray;
+        dst.copyTo(gray);
+        cv::cvtColor(gray, dst, CV_RGB2GRAY);
+    }
+    if (threshold_flg) {    //画像の2値化
+        cv::Mat binary;
+        dst.copyTo(binary);
+        cv::threshold(binary, dst, thread_val, 255, cv::THRESH_BINARY);
+    }
+    if (edge_flg) {         //エッジ検出
+        cv::Mat canny;
+        dst.copyTo(canny);
+        Canny(canny, dst, 1, 240);
+    }
+    if (flat_flg && glayscale_flg) {    //ヒストグラムの平滑化
+        cv::Mat flat;
+        dst.copyTo(flat);
+        cv::equalizeHist(flat, dst);
+    }
+    if (integral_flg && glayscale_flg) {
+        cv::Mat integral;
+        dst.copyTo(integral);
+        Integral_Image(integral, dst);
+    }
+    if (resize_val != 100) {
+        if (resize_val == 0) resize_val = 1;
+        cv::Mat resize;
+        dst.copyTo(resize);
+        cv::resize(resize, dst, cv::Size(), (double) resize_val / 100, (double) resize_val / 100, CV_INTER_LINEAR);   //リサイズする倍率を指定
+    }
+
+    return dst;
 }

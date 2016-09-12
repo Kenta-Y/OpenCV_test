@@ -7,7 +7,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 include_directories(/usr/local/include)
 
 set(SOURCE_FILES main.cpp ImgProcessing.cpp ImgProcessing.h DegreofCircle.cpp DegreofCircle.h)
-add_executable(OpenCV_test ${SOURCE_FILES})
+set(HIST_SOURCE opencv-histlib/src/histLib.cpp opencv-histlib/src/histLib.h)
+add_executable(OpenCV_test ${SOURCE_FILES} ${HIST_SOURCE})
 
 # OpenCV3を利用する
 set(OpenCV_DIR /usr/local/opt/opencv3/share/OpenCV)

@@ -13,9 +13,62 @@ cv::Point2i RasterScan(cv::Mat src_im, int target_val){
     return cv::Point2i(-1, -1);
 }
 
+cv::RotatedRect outline_detect(cv::Mat src_im, cv::Point min_pos, cv::Point max_pos){
+    cv::Mat cols_scan, rows_scan;
+    src_im.copyTo(cols_scan);
+    src_im.copyTo(rows_scan);
+
+    //横スキャン
+    for (int j = min_pos.y; j <= max_pos.y; ++j) {
+        int left_pos = -1, right_pos = -1;
+        for (int i = min_pos.x; i <= max_pos.x; ++i) {
+            if ((int) cols_scan.data[j * cols_scan.step + i * cols_scan.elemSize()] == 255) {
+                if (left_pos == -1)
+                    left_pos = i;
+                else if (right_pos == -1)
+                    right_pos = i;
+                    //else if(i - right_pos == 1)
+                    //    right_pos = i;
+                else {
+                    cols_scan.data[j * cols_scan.step + right_pos * cols_scan.elemSize()] = 0;
+                    right_pos = i;
+                }
+            }
+        }
+    }
+
+    std::vector<cv::Point> iris_age;
+
+    //縦スキャン
+    for (int i = min_pos.x; i <= max_pos.x; ++i) {
+        int top_pos = -1, under_pos = -1;
+        for (int j = min_pos.y; j <= max_pos.y; ++j) {
+            if ((int) rows_scan.data[j * rows_scan.step + i * rows_scan.elemSize()] == 255) {
+                if (top_pos == -1)
+                    top_pos = j;
+                else if (under_pos == -1)
+                    under_pos = j;
+                    //else if(j - under_pos == 1)
+                    //    under_pos = j;
+                else {
+                    rows_scan.data[under_pos * rows_scan.step + i * rows_scan.elemSize()] = 0;
+                    under_pos = j;
+                }
+            }
+        }
+        if ((int) cols_scan.data[top_pos * rows_scan.step + i * rows_scan.elemSize()] == 255)
+            iris_age.push_back(cv::Point(i, top_pos));
+        if ((int) cols_scan.data[under_pos * rows_scan.step + i * rows_scan.elemSize()] == 255)
+            iris_age.push_back(cv::Point(i, under_pos));
+    }
+
+    return cv::fitEllipse(iris_age);
+}
+
 double Ask_Perimeter(cv::Mat tmp, int i, cv::Point2i start_pos, int mode, cv::Mat &src_im){
     // mode0 ->  周囲長を求める
     // mode1 ->  周囲長の描画
+    // mode4 ->  周囲長の描画改
 
     int x = start_pos.x, y = start_pos.y;
     int nextVec = 0;
@@ -23,6 +76,8 @@ double Ask_Perimeter(cv::Mat tmp, int i, cv::Point2i start_pos, int mode, cv::Ma
     //cv::Vec3b Color(0,0,200);
 
     std::vector<cv::Point> pupilelement;
+    cv::Mat outlines = cv::Mat::zeros(tmp.rows, tmp.cols, CV_8UC1);
+    cv::Point min_p = cv::Point(tmp.cols, tmp.rows), max_p = cv::Point(0,0);
 
     while(1){
         bool midstream_flg = false;
@@ -109,20 +164,31 @@ double Ask_Perimeter(cv::Mat tmp, int i, cv::Point2i start_pos, int mode, cv::Ma
                     src_im.at<cv::Vec3b>(y, x) = cv::Vec3b(200,200,200);
                 else
                     src_im.data[y * src_im.cols + x] = 200;
+            }else if(mode == 4){
+                if(y < min_p.y) min_p.y = y;
+                if(x < min_p.x) min_p.x = x;
+                if(y > max_p.y) max_p.y = y;
+                if(x > max_p.x) max_p.x = x;
+
+                pupilelement.push_back(cv::Point(x, y));
+                outlines.data[y * outlines.step + x * outlines.elemSize()] = 255;
             }
         }
 
         if(cv::Point(x,y) == start_pos){
             if(pupilelement.size() > 5 && mode == 1){
                 cv::RotatedRect pupilbox = cv::fitEllipse(pupilelement);
-                cv::ellipse(src_im, pupilbox, cv::Scalar(0,255,0), 10, 8);   //楕円フィッティング！
+                cv::ellipse(src_im, pupilbox, cv::Scalar(0,255,0), 2, 8);   //楕円フィッティング！
+            }else if(pupilelement.size() > 5 && mode == 4){
+                cv::RotatedRect pupilbox = outline_detect(outlines, min_p, max_p);
+                cv::ellipse(src_im, pupilbox, cv::Scalar(0,255,0), 2, 8);   //楕円フィッティング！
+                //p_c = pupilbox.center;
             }
             break;
         }
     }
     return length;
 }
-
 void Paint2label(cv::Mat src_im, cv::Mat &out_im, int nlabels){
 
     static std::vector<cv::Vec3b> colors;
@@ -189,8 +255,10 @@ cv::Point2i Ask_DegreofCircle(cv::Mat src_im, cv::Mat &draw_im, cv::Mat &paint_i
     if(&draw_im != (cv::Mat *)nullptr){
         cv::Point2i point = RasterScan(label, high_circle);
         if(nLabels != 1 && high_circle != -1){
-            Ask_Perimeter(label, high_circle, point, 1, draw_im);   //周囲辺を描画
+            Ask_Perimeter(label, high_circle, point, 4, draw_im);   //周囲辺を描画
             draw_im.at<cv::Vec3b>((int)centroids.at<double>(high_circle*2+1), (int)centroids.at<double>(high_circle*2)) = cv::Vec3b(0, 200, 200);   // 重心の描画
+            //draw_im.at<cv::Vec3b>(p_c.y, p_c.x) = cv::Vec3b(200, 200, 0);   // 重心の描画
+            //Ask_Perimeter(label, high_circle, point, 4, draw_im);   //周囲辺を描画
         }
     }
 
